@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Verificación de Adjuntos — Monday.com</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#080c14;--surface:#0d1321;--panel:#111827;--card:#141c2e;--card2:#192236;
+  --border:#1e2d47;--border2:#243659;--accent:#00d4ff;--accent-dim:rgba(0,212,255,.08);
+  --ok:#22c55e;--warn:#f59e0b;--red:#ef4444;
+  --text:#e8f0fe;--text2:#94a3b8;--text3:#4a5568;
+  --mono:'IBM Plex Mono',monospace;--sans:'IBM Plex Sans',sans-serif;
+}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh;overflow-x:hidden;}
+button{font-family:var(--sans);cursor:pointer;}
+.screen{display:none;min-height:100vh;}
+.screen.active{display:flex;flex-direction:column;}
+
+/* ══ LOGIN ══ */
+#login-screen{align-items:center;justify-content:center;padding:2rem;background:radial-gradient(ellipse at 30% 20%, rgba(0,212,255,.06) 0%, transparent 60%);}
+.login-wrap{width:100%;max-width:540px;margin:auto;}
+.login-logo{text-align:center;margin-bottom:2.5rem;}
+.login-logo .brand{font-family:var(--mono);font-size:.72rem;letter-spacing:.25em;color:var(--accent);opacity:.7;text-transform:uppercase;}
+.login-logo h1{font-size:1.8rem;font-weight:700;margin-top:.4rem;}
+.login-logo h1 span{color:var(--accent);}
+.login-logo .sub{font-size:.78rem;color:var(--text3);margin-top:.4rem;}
+.login-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:2.2rem;position:relative;overflow:hidden;}
+.login-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent);}
+.frow{display:flex;flex-direction:column;gap:.3rem;margin-bottom:1rem;}
+.frow label{font-family:var(--mono);font-size:.62rem;letter-spacing:.1em;color:var(--text3);text-transform:uppercase;}
+.frow input{background:var(--card);border:1px solid var(--border2);color:var(--text);border-radius:8px;padding:.55rem .8rem;font-size:.85rem;font-family:var(--sans);outline:none;transition:border-color .2s;width:100%;}
+.frow input:focus{border-color:var(--accent);}
+.frow .hint{font-size:.68rem;color:var(--text3);margin-top:.25rem;}
+.save-row{display:flex;align-items:center;gap:.5rem;margin-bottom:1.2rem;font-size:.76rem;color:var(--text3);}
+.save-row input[type=checkbox]{accent-color:var(--accent);}
+.btn-primary{width:100%;background:linear-gradient(135deg,var(--accent),rgba(0,180,220,1));color:#050a14;border:none;border-radius:9px;padding:.8rem;font-size:.88rem;font-weight:700;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:.5rem;}
+.btn-primary:hover:not(:disabled){opacity:.9;transform:translateY(-1px);}
+.btn-primary:disabled{opacity:.4;cursor:not-allowed;}
+.login-status{margin-top:1rem;font-size:.78rem;min-height:2rem;display:flex;flex-direction:column;gap:.28rem;}
+.ls-line{display:flex;align-items:center;gap:.5rem;color:var(--text3);}
+.ls-line.done{color:var(--ok);}
+.ls-line.active{color:var(--accent);}
+.ls-line.err{color:var(--red);}
+.ls-spin{width:11px;height:11px;border:2px solid rgba(0,212,255,.2);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* PAI selector */
+.pai-sel-title{font-family:var(--mono);font-size:.62rem;text-transform:uppercase;letter-spacing:.1em;color:var(--text3);margin-bottom:.6rem;}
+.pai-ws-label{font-size:.68rem;color:var(--accent);margin:.6rem 0 .3rem;font-weight:600;font-family:var(--mono);}
+.pai-chip{display:flex;align-items:center;gap:.5rem;background:var(--card);border:1px solid var(--border2);border-radius:8px;padding:.4rem .7rem;margin-bottom:.3rem;cursor:pointer;transition:all .18s;}
+.pai-chip:has(input:checked){border-color:var(--accent);background:var(--accent-dim);}
+.pai-chip input[type=checkbox]{accent-color:var(--accent);flex-shrink:0;}
+.pai-chip-name{font-size:.8rem;font-weight:600;color:var(--text);flex:1;}
+.pai-chip-ws{font-size:.66rem;color:var(--text3);background:rgba(255,255,255,.04);border-radius:4px;padding:.08rem .35rem;}
+
+/* ══ DASH ══ */
+#dash-screen{flex-direction:column;}
+.topbar{background:rgba(13,19,33,.95);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:.6rem 1.4rem;display:flex;align-items:center;gap:.7rem;position:sticky;top:0;z-index:100;}
+.topbar-brand{font-family:var(--mono);font-size:.75rem;color:var(--accent);letter-spacing:.08em;white-space:nowrap;}
+.topbar-sep{width:1px;height:16px;background:var(--border2);flex-shrink:0;}
+.topbar-meta{font-size:.68rem;color:var(--text3);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.tbtn{background:none;border:1px solid var(--border2);color:var(--text3);border-radius:6px;padding:.3rem .75rem;font-size:.72rem;display:flex;align-items:center;gap:.35rem;transition:all .18s;white-space:nowrap;}
+.tbtn:hover{border-color:var(--accent);color:var(--accent);}
+.tbtn.success{background:var(--ok);color:#071a0e;border-color:var(--ok);font-weight:700;}
+.tbtn.spinning svg{animation:spin .8s linear infinite;}
+
+/* FILTER BAR */
+.filterbar{background:var(--panel);border-bottom:1px solid var(--border);padding:.5rem 1.4rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;}
+.fsearch{background:var(--card);border:1px solid var(--border2);color:var(--text);border-radius:6px;padding:.28rem .65rem;font-size:.75rem;font-family:var(--sans);outline:none;transition:border-color .2s;width:220px;}
+.fsearch:focus{border-color:var(--accent);}
+.ftag{display:inline-flex;align-items:center;gap:.25rem;background:var(--card);border:1px solid var(--border2);border-radius:99px;padding:.2rem .6rem;font-size:.69rem;color:var(--text2);cursor:pointer;transition:all .16s;white-space:nowrap;}
+.ftag:hover{border-color:var(--accent);color:var(--text);}
+.ftag.has-filter{background:rgba(0,212,255,.12);border-color:var(--accent);color:var(--accent);}
+.ftag .ftag-count{background:var(--accent);color:#050a14;border-radius:99px;font-size:.57rem;font-family:var(--mono);padding:.03rem .28rem;font-weight:700;}
+.btn-clr{background:none;border:1px solid var(--border2);color:var(--text3);border-radius:6px;padding:.24rem .65rem;font-size:.69rem;cursor:pointer;transition:all .18s;}
+.btn-clr:hover{border-color:var(--warn);color:var(--warn);}
+.fcount{font-family:var(--mono);font-size:.67rem;color:var(--accent);white-space:nowrap;margin-left:auto;}
+
+/* MSDROP */
+.msdrop{position:fixed;z-index:9998;background:var(--card2);border:1px solid var(--accent);border-radius:10px;padding:.5rem;min-width:200px;max-width:320px;max-height:340px;display:flex;flex-direction:column;gap:.3rem;box-shadow:0 16px 48px rgba(0,0,0,.8);}
+.msdrop-search{background:var(--surface);border:1px solid var(--border2);color:var(--text);border-radius:6px;padding:.28rem .5rem;font-size:.73rem;outline:none;font-family:var(--sans);width:100%;flex-shrink:0;}
+.msdrop-list{overflow-y:auto;flex:1;display:flex;flex-direction:column;}
+.msdrop-list label{display:flex;align-items:center;gap:.4rem;padding:.22rem .3rem;font-size:.73rem;cursor:pointer;border-radius:4px;color:var(--text2);}
+.msdrop-list label:hover{background:rgba(0,212,255,.08);color:var(--text);}
+.msdrop-list label input[type=checkbox]{accent-color:var(--accent);flex-shrink:0;}
+.msdrop-footer{display:flex;gap:.3rem;flex-shrink:0;border-top:1px solid var(--border);padding-top:.3rem;}
+.msdrop-footer button{flex:1;background:var(--surface);border:1px solid var(--border);color:var(--text3);border-radius:5px;padding:.22rem;font-size:.67rem;cursor:pointer;font-family:var(--sans);}
+.msdrop-footer button:hover{border-color:var(--accent);color:var(--text);}
+.msdrop-footer .ms-ok{background:var(--accent)!important;border-color:var(--accent)!important;color:#050a14!important;font-weight:700!important;}
+
+/* KPI STRIP */
+.kpi-strip{padding:.75rem 1.4rem;display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:.5rem;background:var(--bg);border-bottom:1px solid var(--border);}
+.kpi{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:.65rem .6rem .55rem;text-align:center;position:relative;overflow:hidden;}
+.kpi::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--kclr,var(--border));}
+.kv{font-family:var(--mono);font-size:1.7rem;font-weight:700;line-height:1;color:var(--kclr,var(--text));}
+.kl{font-size:.58rem;color:var(--text3);margin-top:.25rem;text-transform:uppercase;letter-spacing:.06em;font-weight:600;}
+
+/* MAIN */
+.main{flex:1;padding:1rem 1.4rem 3rem;}
+.tbl-info{font-size:.68rem;color:var(--text3);margin-bottom:.4rem;}
+.table-scroll{overflow-x:auto;border-radius:10px;border:1px solid var(--border);}
+table{width:100%;border-collapse:collapse;font-size:.76rem;}
+thead th{background:var(--panel);color:var(--text2);padding:.55rem .7rem;text-align:center;white-space:nowrap;position:sticky;top:0;z-index:2;border-bottom:1px solid var(--border2);font-size:.62rem;letter-spacing:.05em;font-weight:700;text-transform:uppercase;font-family:var(--mono);cursor:pointer;user-select:none;}
+thead th:hover{background:var(--card2);color:var(--text);}
+thead th.left{text-align:left;}
+thead th .si{margin-left:.2em;opacity:.3;font-size:.6em;}
+thead th.asc .si::after{content:'▲';opacity:1;}
+thead th.desc .si::after{content:'▼';opacity:1;}
+thead th .si::after{content:'⇅';}
+tbody tr:nth-child(odd) td{background:var(--surface);}
+tbody tr:nth-child(even) td{background:var(--panel);}
+tbody tr:hover td{background:rgba(0,212,255,.04)!important;}
+tbody tr.fout{display:none;}
+td{padding:.46rem .7rem;border-bottom:1px solid rgba(255,255,255,.025);text-align:center;color:var(--text);white-space:nowrap;}
+td.left{text-align:left;}
+td.subido{background:rgba(34,197,94,.1)!important;color:#86efac;font-weight:700;}
+td.falta{background:rgba(239,68,68,.14)!important;color:#fca5a5;font-weight:700;}
+td.na{color:var(--text3);font-style:italic;}
+.badge{display:inline-block;border-radius:99px;padding:.12rem .55rem;font-size:.68rem;font-weight:700;font-family:var(--mono);}
+.badge.si{background:rgba(0,212,255,.15);color:var(--accent);}
+.badge.no{background:rgba(100,116,139,.15);color:var(--text3);}
+.empty{color:var(--text3);font-size:.85rem;padding:2rem;text-align:center;}
+
+/* TABS */
+.tabs{display:flex;gap:.3rem;flex-wrap:wrap;margin-bottom:.7rem;border-bottom:1px solid var(--border);padding-bottom:.4rem;}
+.tab{background:none;border:1px solid transparent;color:var(--text3);border-radius:6px;padding:.3rem .8rem;font-size:.73rem;transition:all .16s;font-weight:500;font-family:var(--sans);}
+.tab:hover{background:var(--card);color:var(--text);}
+.tab.active{background:var(--accent);color:#050a14;font-weight:700;}
+</style>
+</head>
+<body>
+
+<!-- ══ LOGIN ══ -->
+<div id="login-screen" class="screen active">
+  <div class="login-wrap">
+    <div class="login-logo">
+      <div class="brand">Monday.com · Control de Respaldos</div>
+      <h1>Verificación de <span>Adjuntos</span></h1>
+      <div class="sub">Revisa qué subelementos que requieren adjunto tienen el archivo subido</div>
+    </div>
+    <div class="login-card">
+      <div class="frow">
+        <label>API Key de Monday.com</label>
+        <input type="password" id="apikey" placeholder="eyJhbGciOiJIUzI1NiJ9…" autocomplete="off"/>
+        <span class="hint">Settings → Developers → My Access Tokens</span>
+      </div>
+      <div class="save-row">
+        <input type="checkbox" id="savekey" checked/>
+        <label for="savekey">Guardar clave en este navegador</label>
+      </div>
+      <button class="btn-primary" id="btnConnect" onclick="startConnect()">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        Conectar y buscar PAI
+      </button>
+      <div class="login-status" id="login-status"></div>
+      <div id="pai-selector" style="display:none;margin-top:1rem;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ DASHBOARD ══ -->
+<div id="dash-screen" class="screen">
+  <div class="topbar">
+    <div class="topbar-brand">CONTROL · ADJUNTOS</div>
+    <div class="topbar-sep"></div>
+    <div class="topbar-meta" id="topMeta"></div>
+    <button class="tbtn" onclick="goBack()">← Volver</button>
+    <button class="tbtn spinning" id="btnRefresh" onclick="doRefresh()">
+      <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+      Actualizar
+    </button>
+    <button class="tbtn success" id="btnDl">⬇ Excel</button>
+  </div>
+
+  <div class="filterbar">
+    <input type="text" class="fsearch" id="fS" placeholder="🔍 Buscar…"/>
+    <button class="ftag" id="ftag-fP" onclick="openMS('fP',this)">Proyecto <span style="font-size:.62em;opacity:.5">▾</span></button>
+    <button class="ftag" id="ftag-fAp" onclick="openMS('fAp',this)">Aplica Adjunto <span style="font-size:.62em;opacity:.5">▾</span></button>
+    <button class="ftag" id="ftag-fEs" onclick="openMS('fEs',this)">Adjunto <span style="font-size:.62em;opacity:.5">▾</span></button>
+    <button class="btn-clr" id="btnClr">✕ Limpiar</button>
+    <div class="fcount" id="fcount"></div>
+  </div>
+
+  <div class="kpi-strip" id="kpis"></div>
+
+  <div class="main">
+    <div class="tabs" id="tabs">
+      <button class="tab active" data-view="all">📋 Todos</button>
+      <button class="tab" data-view="falta">⚠️ Solo faltantes</button>
+    </div>
+    <div id="tableArea"></div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════
+// CONFIG
+// ══════════════════════════════════════════
+const API_URL='https://api.monday.com/v2';
+const CORS_PROXIES=[url=>`https://corsproxy.io/?${encodeURIComponent(url)}`,url=>`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`];
+
+// Nombres posibles de las columnas (por si varían acentos/mayúsculas)
+const COL_APLICA=['Aplica Adjunto','Aplica adjunto','APLICA ADJUNTO','Aplica Adjuntos','¿Aplica Adjunto?','Aplica'];
+const COL_ADJUNTO=['Adjunto','Adjuntos','ADJUNTO','Archivo','Archivos'];
+
+// ══════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════
+let RAW=[];        // filas de subelementos {proyecto, item, subitem, aplica, adjunto}
+let DF=[];
+let lastMeta='',lastConfig=null;
+let currentView='all';
+window.CVMap={};
+
+// Restore saved key
+(function(){try{const k=localStorage.getItem('monday_api_key');if(k)document.getElementById('apikey').value=k;}catch(e){}})();
+
+// ══════════════════════════════════════════
+// SCREEN NAV
+// ══════════════════════════════════════════
+function showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');}
+function goBack(){RAW=[];DF=[];FKEYS.forEach(({id})=>GF[id]=new Set());document.getElementById('fS').value='';document.getElementById('tableArea').innerHTML='';document.getElementById('login-status').innerHTML='';showScreen('login-screen');}
+
+// ══════════════════════════════════════════
+// API
+// ══════════════════════════════════════════
+async function runQuery(apikey,query){
+  const isFile=location.protocol==='file:';
+  const body=JSON.stringify({query});
+  const headers={'Content-Type':'application/json','Authorization':apikey,'API-Version':'2026-01'};
+  if(!isFile){const r=await fetch(API_URL,{method:'POST',headers,body});if(!r.ok)throw new Error(`HTTP ${r.status}`);const j=await r.json();if(j.errors)throw new Error(j.errors[0].message);return j;}
+  let lastErr='';
+  for(const pFn of CORS_PROXIES){try{const r=await fetch(pFn(API_URL),{method:'POST',headers:{...headers,'X-Requested-With':'XMLHttpRequest'},body});if(!r.ok)throw new Error(`HTTP ${r.status}`);const j=await r.json();const data=j.contents?JSON.parse(j.contents):j;if(data.errors)throw new Error(data.errors[0].message);return data;}catch(e){lastErr=e.message;}}
+  throw new Error('No se pudo conectar: '+lastErr);
+}
+function chunk(arr,n){const o=[];for(let i=0;i<arr.length;i+=n)o.push(arr.slice(i,i+n));return o;}
+
+// ══════════════════════════════════════════
+// PAI DISCOVERY
+// ══════════════════════════════════════════
+async function findAllPAIBoards(apikey){
+  const j=await runQuery(apikey,'query { boards (limit: 5000) { id name workspace { name } } }');
+  const pais=j.data.boards.filter(b=>/^PAI\b/i.test(b.name.trim()));
+  if(!pais.length)throw new Error('No se encontraron tableros PAI.');
+  const grouped={};
+  pais.forEach(b=>{const ws=b.workspace?.name||'Sin workspace';if(!grouped[ws])grouped[ws]=[];grouped[ws].push(b);});
+  Object.values(grouped).forEach(arr=>arr.sort((a,b)=>a.name.localeCompare(b.name)));
+  return{pais,grouped};
+}
+
+async function readPAIItems(apikey,paiId){
+  const q=`query { boards (ids: [${paiId}]) { id name columns { id title type } items_page (limit: 500) { items { id name column_values { id text value type column { title } ... on LinkValue { url text } } } } }}`;
+  const j=await runQuery(apikey,q);
+  const board=j.data.boards[0];
+  if(!board)throw new Error('No se pudo leer el tablero PAI.');
+  const projects=[];
+  for(const item of board.items_page.items){
+    const linkedItems=[];
+    item.column_values.forEach(cv=>{
+      const t=cv.column?.title||'';
+      if(t==='Tableros Planificación'||t==='Tableros Planificacion'||t==='Tablero Planificación'||t==='Tablero Planificacion'){
+        const allText=[cv.text||'',cv.url||'',cv.value||''].join(' ');
+        const urlMatches=[...allText.matchAll(/monday\.com\/boards\/(\d+)/gi)];
+        urlMatches.forEach(m=>{const id=m[1];if(!linkedItems.find(x=>x.id===id)){const nm=(cv.text||'').match(/^(.*?)\s*-\s*https?:\/\//);const name=nm?nm[1].trim():(cv.text||'').split('-')[0].trim();linkedItems.push({id,name});}});
+        if(linkedItems.length===0&&cv.value&&cv.value!=='null'){try{const p=JSON.parse(cv.value);const url=p.url||p.link||'';const m=url.match(/monday\.com\/boards\/(\d+)/i);if(m)linkedItems.push({id:m[1],name:p.text||''});}catch(e){}}
+      }
+    });
+    if(linkedItems.length>0)projects.push({paiItemName:item.name,linkedItems});
+  }
+  return projects;
+}
+
+// ══════════════════════════════════════════
+// LECTURA DE SUBELEMENTOS + ADJUNTOS
+// Por cada tablero → ítems → subelementos.
+// En cada subelemento buscamos:
+//   • Columna "Aplica Adjunto" (Sí/No)
+//   • Columna "Adjunto" (File) → verificar si hay archivo
+// ══════════════════════════════════════════
+function findColByTitle(cvs, titles){
+  return (cvs||[]).find(cv=>titles.includes(cv.column?.title||''));
+}
+function readStatus(cv){
+  // Devuelve el label de una columna status/color
+  if(!cv)return '';
+  if(cv.label!=null&&cv.label!=='')return cv.label;
+  if(cv.text&&cv.text.trim()&&!/^\d+$/.test(cv.text.trim()))return cv.text.trim();
+  if(cv.value&&cv.value!=='null'){try{const p=JSON.parse(cv.value);if(p.label)return p.label;}catch(e){}}
+  return cv.text||'';
+}
+function hasAttachment(cv){
+  // Devuelve true si la columna de archivo tiene algo subido
+  if(!cv)return false;
+  if(cv.files&&cv.files.length>0)return true;
+  if(cv.text&&cv.text.trim()!=='')return true;
+  if(cv.value&&cv.value!=='null'&&cv.value!==''){
+    try{const p=JSON.parse(cv.value);if(p&&Array.isArray(p.files)&&p.files.length>0)return true;}catch(e){}
+  }
+  return false;
+}
+
+async function getSubitemRows(apikey, boards){
+  // boards: [{id, name}]  → devuelve filas de subelementos
+  const rows=[];
+  const boardMap={}; boards.forEach(b=>boardMap[b.id]=b.name);
+  const batches=chunk(boards.map(b=>b.id),6);
+  let _logged=false;
+  for(const batch of batches){
+    const q=`query { boards (ids: [${batch.join(',')}]) {
+      id name
+      items_page (limit: 500) {
+        items {
+          id name
+          subitems {
+            id name
+            column_values {
+              id type text value
+              column { title }
+              ... on StatusValue { label }
+              ... on FileValue { files { name } }
+            }
+          }
+        }
+      }
+    }}`;
+    let j;
+    try{ j=await runQuery(apikey,q); }
+    catch(e){ console.warn('[Subitems] Error lote:',e.message); continue; }
+    for(const board of j.data.boards){
+      const proyecto=board.name;
+      for(const item of board.items_page.items){
+        if(!item.subitems||!item.subitems.length)continue;
+        for(const sub of item.subitems){
+          const cvs=sub.column_values||[];
+          const aplicaCol=findColByTitle(cvs,COL_APLICA);
+          const adjCol=findColByTitle(cvs,COL_ADJUNTO) || cvs.find(cv=>cv.type==='file');
+
+          const aplica=readStatus(aplicaCol);           // "Sí" / "No" / ""
+          const aplicaSi=/^s[ií]$/i.test(aplica.trim()); // true si dice Sí
+          const tieneArchivo=hasAttachment(adjCol);
+
+          // Estado del adjunto:
+          //   • Si NO aplica → "No aplica"
+          //   • Si aplica y hay archivo → "Subido"
+          //   • Si aplica y no hay archivo → "Falta"
+          let estado;
+          if(!aplicaSi) estado='No aplica';
+          else estado=tieneArchivo?'Subido':'Falta';
+
+          if(!_logged){
+            console.log('[Subitems] Ejemplo:',sub.name,
+              '| columnas:',cvs.map(cv=>(cv.column?.title||'?')+':'+cv.type).join(', '),
+              '| aplica:',aplica,'| tieneArchivo:',tieneArchivo,'| estado:',estado);
+            _logged=true;
+          }
+
+          rows.push({
+            proyecto,
+            item: item.name,
+            subitem: sub.name,
+            aplica: aplica||'—',
+            estado,
+          });
+        }
+      }
+    }
+  }
+  return rows;
+}
+
+// ══════════════════════════════════════════
+// CONNECT FLOW
+// ══════════════════════════════════════════
+function logStep(msg,state='active'){const el=document.getElementById('login-status');const id='ls-'+Date.now()+Math.random().toString(36).slice(2,5);const spin=state==='active'?`<div class="ls-spin"></div>`:'';const icon=state==='done'?'✅':state==='err'?'❌':spin;el.innerHTML+=`<div class="ls-line ${state}" id="${id}">${icon} ${msg}</div>`;el.scrollTop=el.scrollHeight;return id;}
+function updateStep(id,msg,state){const el=document.getElementById(id);if(!el)return;el.className='ls-line '+state;const icon=state==='done'?'✅':state==='err'?'❌':'';el.innerHTML=`${icon} ${msg}`;}
+
+let _paiApiKey='';
+
+async function startConnect(){
+  const apikey=document.getElementById('apikey').value.trim();
+  if(!apikey){alert('Por favor ingresa tu API key');return;}
+  if(document.getElementById('savekey').checked){try{localStorage.setItem('monday_api_key',apikey);}catch(e){}}
+  lastConfig={apikey};
+  document.getElementById('btnConnect').disabled=true;
+  document.getElementById('login-status').innerHTML='';
+  document.getElementById('pai-selector').style.display='none';
+  try{
+    const s1=logStep('Buscando tableros PAI…');
+    const{pais,grouped}=await findAllPAIBoards(apikey);
+    updateStep(s1,`${pais.length} tablero(s) PAI encontrado(s)`,'done');
+    showPAISelector(grouped,apikey);
+  }catch(err){logStep(`Error: ${err.message}`,'err');document.getElementById('btnConnect').disabled=false;}
+}
+
+function showPAISelector(grouped,apikey){
+  _paiApiKey=apikey;
+  const container=document.getElementById('pai-selector');
+  const savedPAIs=JSON.parse(localStorage.getItem('selected_pais')||'[]');
+  let html=`<div class="pai-sel-title">Selecciona tableros PAI</div>
+  <div style="display:flex;gap:.5rem;margin-bottom:.5rem;">
+    <button type="button" onclick="paiSelAll(true)" style="background:none;border:1px solid var(--border2);color:var(--text3);border-radius:5px;padding:.2rem .65rem;font-size:.68rem;cursor:pointer;">☑ Todos</button>
+    <button type="button" onclick="paiSelAll(false)" style="background:none;border:1px solid var(--border2);color:var(--text3);border-radius:5px;padding:.2rem .65rem;font-size:.68rem;cursor:pointer;">☐ Ninguno</button>
+    <span id="pai-count" style="margin-left:auto;font-size:.68rem;color:var(--accent);align-self:center;font-family:var(--mono);"></span>
+  </div>`;
+  Object.entries(grouped).forEach(([ws,boards])=>{
+    html+=`<div class="pai-ws-label">${esc(ws)}</div>`;
+    boards.forEach(b=>{const checked=savedPAIs.length===0||savedPAIs.includes(b.id)?'checked':'';html+=`<label class="pai-chip"><input type="checkbox" class="pai-cb" value="${esc(b.id)}" data-name="${esc(b.name)}" ${checked} onchange="updatePaiCount()"/><span class="pai-chip-name">${esc(b.name)}</span><span class="pai-chip-ws">${esc(ws)}</span></label>`;});
+  });
+  html+=`<button type="button" class="btn-primary" style="margin-top:.8rem" id="btnLoadPAI" onclick="confirmPAISelection()">Verificar adjuntos</button>`;
+  container.innerHTML=html;container.style.display='block';document.getElementById('btnConnect').disabled=false;updatePaiCount();
+}
+function paiSelAll(v){document.querySelectorAll('.pai-cb').forEach(cb=>cb.checked=v);updatePaiCount();}
+function updatePaiCount(){const t=document.querySelectorAll('.pai-cb').length,s=document.querySelectorAll('.pai-cb:checked').length;const el=document.getElementById('pai-count');if(el)el.textContent=`${s}/${t}`;const btn=document.getElementById('btnLoadPAI');if(btn)btn.disabled=s===0;}
+
+async function confirmPAISelection(){
+  const checked=[...document.querySelectorAll('.pai-cb:checked')];
+  if(!checked.length){alert('Selecciona al menos un PAI');return;}
+  const selectedIds=checked.map(c=>c.value),selectedNames=checked.map(c=>c.dataset.name);
+  try{localStorage.setItem('selected_pais',JSON.stringify(selectedIds));localStorage.setItem('selected_pai_names',JSON.stringify(selectedNames));}catch(e){}
+  lastConfig.paiIds=selectedIds;lastConfig.paiNames=selectedNames;
+  document.getElementById('pai-selector').style.display='none';
+  document.getElementById('login-status').innerHTML='';
+  const btn=document.getElementById('btnLoadPAI');if(btn)btn.disabled=true;
+  try{await loadData(_paiApiKey,selectedIds,selectedNames);}
+  catch(err){logStep(`Error: ${err.message}`,'err');document.getElementById('pai-selector').style.display='block';if(btn)btn.disabled=false;}
+}
+
+async function loadData(apikey,paiIds,paiNames){
+  // 1. Leer PAIs → tableros vinculados
+  const s1=logStep(`Leyendo ${paiIds.length} PAI(s)…`);
+  const boardSet=new Map();
+  for(let i=0;i<paiIds.length;i++){
+    updateStep(s1,`Leyendo ${paiNames[i]}…`,'active');
+    const projects=await readPAIItems(apikey,paiIds[i]);
+    projects.forEach(p=>p.linkedItems.forEach(li=>{if(!boardSet.has(li.id))boardSet.set(li.id,{id:li.id,name:li.name});}));
+  }
+  const boards=[...boardSet.values()];
+  updateStep(s1,`${boards.length} tableros de proyecto identificados`,'done');
+  if(!boards.length)throw new Error('No se encontraron tableros vinculados en el PAI.');
+
+  // 2. Leer subelementos + adjuntos
+  const s2=logStep('Revisando subelementos y adjuntos…');
+  RAW=await getSubitemRows(apikey,boards);
+  updateStep(s2,`${RAW.length} subelementos revisados`,'done');
+
+  if(!RAW.length)throw new Error('No se encontraron subelementos en los tableros seleccionados.');
+
+  lastMeta=`${RAW.length} subelementos · ${boards.length} tableros · ${paiNames.join(' + ')} · ${new Date().toLocaleTimeString('es-CL')}`;
+  setTimeout(()=>{buildApp();showScreen('dash-screen');},350);
+}
+
+async function doRefresh(){
+  if(!lastConfig||!lastConfig.paiIds)return;
+  const btn=document.getElementById('btnRefresh');btn.classList.add('spinning');btn.disabled=true;
+  try{await loadData(lastConfig.apikey,lastConfig.paiIds,lastConfig.paiNames);buildApp();}
+  catch(err){alert('Error: '+err.message);}
+  finally{btn.classList.remove('spinning');btn.disabled=false;}
+}
+
+// ══════════════════════════════════════════
+// FILTERS
+// ══════════════════════════════════════════
+const GF={fP:new Set(),fAp:new Set(),fEs:new Set()};
+const FKEYS=[
+  {id:'fP',key:'proyecto',label:'Proyecto'},
+  {id:'fAp',key:'aplica',label:'Aplica Adjunto'},
+  {id:'fEs',key:'estado',label:'Adjunto'},
+];
+const FOPTS={};
+function buildFOpts(data){FKEYS.forEach(({id,key})=>{FOPTS[id]=uq(data.map(r=>r[key]));});}
+function refreshTag(id){const btn=document.getElementById('ftag-'+id);if(!btn)return;const sel=GF[id],cfg=FKEYS.find(f=>f.id===id),total=(FOPTS[id]||[]).length;const active=sel.size>0&&sel.size<total;btn.classList.toggle('has-filter',active);let inner=cfg.label;if(active){inner=sel.size<=2?`${cfg.label}: <strong>${[...sel].join(', ')}</strong>`:`${cfg.label} <span class="ftag-count">${sel.size}</span>`;}btn.innerHTML=inner+' <span style="font-size:.62em;opacity:.5">▾</span>';}
+function refreshAllTags(){FKEYS.forEach(f=>refreshTag(f.id));}
+function apF(data,search){return data.filter(r=>{for(const{id,key}of FKEYS){const sel=GF[id];if(sel.size>0){const total=(FOPTS[id]||[]).length;if(sel.size<total&&!sel.has(r[key]))return false;}}if(search){const h=[r.proyecto,r.item,r.subitem,r.aplica,r.estado].join(' ').toLowerCase();if(!h.includes(search))return false;}return true;});}
+function onFilter(){const s=document.getElementById('fS').value.toLowerCase().trim();DF=apF(RAW,s);if(currentView==='falta')DF=DF.filter(r=>r.estado==='Falta');document.getElementById('fcount').textContent=`${DF.length} / ${RAW.length}`;updateKPIs();renderTable();}
+document.getElementById('fS').addEventListener('input',onFilter);
+document.getElementById('btnClr').addEventListener('click',()=>{FKEYS.forEach(({id})=>GF[id]=new Set());document.getElementById('fS').value='';refreshAllTags();onFilter();});
+
+let activeMSD=null;
+const msdEl=document.createElement('div');msdEl.className='msdrop';msdEl.style.display='none';document.body.appendChild(msdEl);
+document.addEventListener('click',e=>{if(!e.target.closest('.msdrop')&&!e.target.closest('.ftag')){msdEl.style.display='none';activeMSD=null;}});
+function openMS(id,btn){
+  if(activeMSD===id){msdEl.style.display='none';activeMSD=null;return;}activeMSD=id;
+  const opts=FOPTS[id]||[],sel=GF[id],allSel=sel.size===0||sel.size===opts.length;
+  msdEl.innerHTML=`<input class="msdrop-search" type="text" placeholder="Buscar…" id="mds-s" autocomplete="off"/><div class="msdrop-list" id="mds-l">${opts.map(v=>`<label class="${allSel||sel.has(v)?'checked':''}"><input type="checkbox" value="${esc(v)}" ${allSel||sel.has(v)?'checked':''}/>${esc(v)}</label>`).join('')}</div><div class="msdrop-footer"><button onclick="msAll()">Todos</button><button onclick="msNone()">Ninguno</button><button class="ms-ok" onclick="msApply('${id}')">Aplicar ✓</button></div>`;
+  document.getElementById('mds-s').addEventListener('input',e=>{const q=e.target.value.toLowerCase();msdEl.querySelectorAll('#mds-l label').forEach(l=>{l.style.display=l.textContent.toLowerCase().includes(q)?'':'none';});});
+  const rect=btn.getBoundingClientRect();msdEl.style.display='flex';msdEl.style.top=(rect.bottom+4+window.scrollY)+'px';msdEl.style.left=Math.min(rect.left+window.scrollX,window.innerWidth-235)+'px';
+  document.getElementById('mds-s').focus();
+}
+function msAll(){msdEl.querySelectorAll('input[type=checkbox]').forEach(cb=>cb.checked=true);}
+function msNone(){msdEl.querySelectorAll('input[type=checkbox]').forEach(cb=>cb.checked=false);}
+function msApply(id){const checked=[...msdEl.querySelectorAll('input[type=checkbox]:checked')].map(cb=>cb.value);const total=(FOPTS[id]||[]).length;GF[id]=checked.length===total?new Set():new Set(checked);msdEl.style.display='none';activeMSD=null;refreshTag(id);onFilter();}
+
+// ══════════════════════════════════════════
+// APP BUILD
+// ══════════════════════════════════════════
+function buildApp(){
+  DF=[...RAW];
+  buildFOpts(RAW);FKEYS.forEach(({id})=>GF[id]=new Set());refreshAllTags();
+  document.getElementById('topMeta').textContent=lastMeta;
+  document.getElementById('fcount').textContent=`${RAW.length} / ${RAW.length}`;
+  // tab handlers
+  document.querySelectorAll('.tab').forEach(t=>{
+    t.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));t.classList.add('active');currentView=t.dataset.view;onFilter();};
+  });
+  currentView='all';
+  updateKPIs();renderTable();
+}
+
+function updateKPIs(){
+  const aplica=RAW.filter(r=>r.estado==='Subido'||r.estado==='Falta'); // aplica adjunto
+  const subido=RAW.filter(r=>r.estado==='Subido').length;
+  const falta=RAW.filter(r=>r.estado==='Falta').length;
+  const noAplica=RAW.filter(r=>r.estado==='No aplica').length;
+  const pctOK=aplica.length?Math.round(subido/aplica.length*100):0;
+  document.getElementById('kpis').innerHTML=[
+    {v:RAW.length,l:'Subelementos',c:'--accent'},
+    {v:aplica.length,l:'Requieren adjunto',c:'--accent'},
+    {v:subido,l:'✅ Subidos',c:'--ok'},
+    {v:falta,l:'⚠️ Faltantes',c:'--red'},
+    {v:noAplica,l:'No aplica',c:'--text3'},
+    {v:pctOK+'%',l:'Cumplimiento',c:pctOK>=80?'--ok':pctOK>=50?'--warn':'--red'},
+  ].map(k=>`<div class="kpi" style="--kclr:var(${k.c})"><div class="kv">${k.v}</div><div class="kl">${k.l}</div></div>`).join('');
+}
+
+function renderTable(){
+  const area=document.getElementById('tableArea');
+  if(!DF.length){area.innerHTML='<div class="empty">Sin resultados para los filtros actuales.</div>';return;}
+  const rows=DF.map(r=>[r.proyecto,r.item,r.subitem,r.aplica,r.estado]);
+  area.innerHTML=mktbl('adj',['Proyecto','Ítem','Subelemento','Aplica Adjunto','Adjunto'],rows,
+    {0:'left',1:'left',2:'left'},
+    (v,ci)=>{
+      if(ci===3){return `<span class="badge ${/^s[ií]$/i.test(String(v).trim())?'si':'no'}">${v}</span>`;}
+      if(ci===4){return v==='Subido'?'CELL:subido':v==='Falta'?'CELL:falta':'CELL:na';}
+      return '';
+    });
+}
+
+// ══════════════════════════════════════════
+// TABLE BUILDER
+// ══════════════════════════════════════════
+function mktbl(id,hdrs,brows,hc={},cfn=null){
+  const cv=hdrs.map((_,ci)=>brows.map(r=>String(r[ci]??'')));
+  window.CVMap[id]=cv;
+  let h=`<div class="tbl-info"><span id="i-${id}">Mostrando ${brows.length} filas</span></div><div class="table-scroll"><table id="t-${id}"><thead><tr>`;
+  hdrs.forEach((hdr,i)=>{const cls=hc[i]||'',isL=cls.includes('left')||i===0;h+=`<th class="${isL?'left':''}" onclick="srt('${id}',${i},this)">${hdr}<i class="si"></i></th>`;});
+  h+='</tr></thead><tbody>';
+  brows.forEach(row=>{
+    h+='<tr>';
+    row.forEach((cell,ci)=>{
+      let raw=cfn?cfn(cell,ci,row)||'':'';
+      let tc='',content=cell??'';
+      if(raw.startsWith('CELL:')){tc=raw.slice(5);}
+      else if(raw){content=raw;} // HTML inline (badge)
+      const isL=ci===0||((hc[ci]||'').includes('left'));
+      h+=`<td class="${isL?'left':''} ${tc}">${content}</td>`;
+    });
+    h+='</tr>';
+  });
+  h+='</tbody></table></div>';
+  return h;
+}
+function srt(tid,ci,th){
+  const tbl=document.getElementById('t-'+tid);if(!tbl)return;
+  const asc=th.classList.contains('asc');
+  tbl.querySelectorAll('thead th').forEach(t=>t.classList.remove('asc','desc'));
+  th.classList.toggle('asc',!asc);th.classList.toggle('desc',asc);
+  const tbody=tbl.querySelector('tbody');
+  [...tbody.querySelectorAll('tr')].sort((a,b)=>{const av=a.cells[ci]?.textContent.trim()||'',bv=b.cells[ci]?.textContent.trim()||'';return asc?bv.localeCompare(av,'es'):av.localeCompare(bv,'es');}).forEach(r=>tbody.appendChild(r));
+}
+
+// ══════════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════════
+function uq(arr){return[...new Set(arr)].filter(x=>x!=null&&x!=='').sort();}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+// ══════════════════════════════════════════
+// EXCEL EXPORT
+// ══════════════════════════════════════════
+document.getElementById('btnDl').addEventListener('click',()=>{
+  if(!DF.length)return;
+  const wb=XLSX.utils.book_new();
+  const H=['Proyecto','Ítem','Subelemento','Aplica Adjunto','Adjunto'];
+  const rows=DF.map(r=>[r.proyecto,r.item,r.subitem,r.aplica,r.estado]);
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([H,...rows]),'Adjuntos');
+  // Hoja solo faltantes
+  const falta=RAW.filter(r=>r.estado==='Falta');
+  if(falta.length)XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([H,...falta.map(r=>[r.proyecto,r.item,r.subitem,r.aplica,r.estado])]),'Faltantes');
+  const ts=new Date().toISOString().slice(0,16).replace('T','_').replace(':','-');
+  XLSX.writeFile(wb,`verificacion_adjuntos_${ts}.xlsx`);
+});
+</script>
+</body>
+</html>
